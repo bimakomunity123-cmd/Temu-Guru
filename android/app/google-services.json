@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "580990309347",
+    "project_id": "ruang-guru-cc8d2",
+    "storage_bucket": "ruang-guru-cc8d2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:580990309347:android:01ab844370ff2307a806d6",
+        "android_client_info": {
+          "package_name": "com.example.flutter_ruangguru"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "580990309347-jj62i3t9pir5l0jd4a9alneg778k8bms.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApceBLVW3ab5gZ7dZRt6UL3PBm2_MGe40"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "580990309347-jj62i3t9pir5l0jd4a9alneg778k8bms.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

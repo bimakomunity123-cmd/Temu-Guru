@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Teacher Private Documents (Certificates, NIK, etc.)
+    // - No permanent public URLs allowed
+    // - Max 5 MB
+    // - PDF format only
+    match /teacher_documents/{teacherUid}/{fileName} {
+      allow read: if isOwner(teacherUid) || isAdmin();
+      allow write: if isOwner(teacherUid)
+                   && request.resource.size <= 5 * 1024 * 1024
+                   && request.resource.contentType == 'application/pdf';
+      allow delete: if isOwner(teacherUid) || isAdmin();
+    }
+  }
+}

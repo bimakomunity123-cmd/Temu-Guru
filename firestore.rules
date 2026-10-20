@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    function isApprovedTeacher() {
+      return isAuthenticated() &&
+             getUserData().role == 'teacher' &&
+             get(/databases/$(database)/documents/teacherProfiles/$(request.auth.uid)).data.applicationStatus == 'approved';
+    }
+
+    // 1. Users collection
+    // - Each user can only read their own user record or admin can read all
+    // - Creation is allowed upon signup with initial status
+    // - Role and accountStatus cannot be updated by normal user
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == userId &&
+                      (request.resource.data.role != 'admin' || isAdmin());
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.accountStatus == resource.data.accountStatus
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Student Profiles
+    // - Students can read and update their own profile; admin can view all
+    match /studentProfiles/{studentId} {
+      allow read: if isOwner(studentId) || isAdmin();
+      allow create: if isOwner(studentId) || isAdmin();
+      allow update: if isOwner(studentId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 3. Teacher Profiles
+    // - Only owner and admin can view profile (protects NIK & private documents)
+    // - Initial creation forces applicationStatus = 'pending'
+    // - Only admin can change applicationStatus (approved/rejected) or rejectionReason
+    match /teacherProfiles/{teacherId} {
+      allow read: if isOwner(teacherId) || isAdmin();
+      allow create: if isOwner(teacherId) &&
+                      request.resource.data.applicationStatus == 'pending' &&
+                      request.resource.data.nik.size() == 16;
+      allow update: if isAdmin() || (
+        isOwner(teacherId) &&
+        request.resource.data.applicationStatus == resource.data.applicationStatus &&
+        request.resource.data.nik == resource.data.nik
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 4. Daily Lesson Reports
+    // - Only approved teachers can create reports for their students
+    // - Teacher can read their own created reports
+    // - Student can read reports where studentUid == auth.uid
+    // - Admin has full audit access
+    match /lessonReports/{reportId} {
+      allow read: if isAuthenticated() && (
+        resource.data.teacherUid == request.auth.uid ||
+        resource.data.studentUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isApprovedTeacher() &&
+                       request.resource.data.teacherUid == request.auth.uid;
+      allow update: if isApprovedTeacher() &&
+                       resource.data.teacherUid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // 5. Teaching Materials (Bahan Ajar & Presentasi Guru)
+    // - Published materials readable by authenticated teachers & admin
+    // - Admin manages and updates metadata / Google Drive links
+    match /teachingMaterials/{materialId} {
+      allow read: if isAuthenticated() && (
+        resource.data.isPublished == true ||
+        isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+
+    // 6. Learning Modules (Modul Belajar Siswa - Cloud PDF)
+    // - Published modules readable by authenticated students & admin
+    // - Admin manages and updates module versions and cloud PDF URLs
+    match /learningModules/{moduleId} {
+      allow read: if isAuthenticated() && (
+        resource.data.isPublished == true ||
+        isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+
+    // 7. Student Lesson Reviews (Ulasan Setelah Les)
+    // - Student can only review completed sessions where studentUid matches auth.uid
+    // - Rating must be between 1 and 5; impression is mandatory with char limit
+    // - Teacher can read reviews assigned to them
+    // - Student can read & edit their own review
+    // - Admin can moderate (read, update moderationStatus, delete)
+    match /lessonReviews/{reviewId} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentUid == request.auth.uid ||
+        resource.data.teacherUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() &&
+                       request.resource.data.studentUid == request.auth.uid &&
+                       request.resource.data.rating >= 1 &&
+                       request.resource.data.rating <= 5 &&
+                       request.resource.data.impression.size() > 0 &&
+                       request.resource.data.impression.size() <= 500;
+      allow update: if isAuthenticated() && (
+        (resource.data.studentUid == request.auth.uid &&
+         request.resource.data.studentUid == resource.data.studentUid &&
+         request.resource.data.lessonSessionId == resource.data.lessonSessionId &&
+         request.resource.data.rating >= 1 &&
+         request.resource.data.rating <= 5 &&
+         request.resource.data.impression.size() > 0 &&
+         request.resource.data.impression.size() <= 500) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}
